@@ -211,6 +211,7 @@ def save_to_database(df, summary_df, conn_string, batch_id):
         st.error(traceback.format_exc())
         return False
 
+
 def get_historical_data(conn_string, start_date=None, end_date=None):
     """Retrieve historical data from database."""
     try:
@@ -218,31 +219,32 @@ def get_historical_data(conn_string, start_date=None, end_date=None):
 
         query = """
             SELECT 
-                DATE_TRUNC('month', processing_date) as month,
+                DATE_TRUNC('month', service_date) as month,
                 provider_name,
-                AVG(mean) as avg_mean_time,
-                AVG(median) as avg_median_time,
-                SUM(count) as total_sessions,
-                AVG(std_dev) as avg_std_dev
-            FROM provider_summary
+                AVG(time_to_note) as avg_mean_time,
+                COUNT(*) as total_sessions,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY time_to_note) as avg_median_time,
+                STDDEV(time_to_note) as avg_std_dev
+            FROM processed_data
+            WHERE time_to_note IS NOT NULL
         """
 
         conditions = []
         params = {}
 
         if start_date:
-            conditions.append("DATE(processing_date) >= :start_date")
+            conditions.append("DATE(service_date) >= :start_date")
             params['start_date'] = start_date
 
         if end_date:
-            conditions.append("DATE(processing_date) <= :end_date")
+            conditions.append("DATE(service_date) <= :end_date")
             params['end_date'] = end_date
 
         if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+            query += " AND " + " AND ".join(conditions)
 
         query += """
-            GROUP BY DATE_TRUNC('month', processing_date), provider_name
+            GROUP BY DATE_TRUNC('month', service_date), provider_name
             ORDER BY month DESC, provider_name
         """
 
@@ -254,7 +256,6 @@ def get_historical_data(conn_string, start_date=None, end_date=None):
         st.error(f"Error retrieving historical data: {str(e)}")
         st.error(traceback.format_exc())
         return None
-
 
 def process_provider_data(uploaded_file, holidays_list=None):
     """
