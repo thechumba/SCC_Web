@@ -640,15 +640,22 @@ def main():
                     if historical_data is not None and not historical_data.empty:
                         st.success(f"✅ Loaded data for {len(historical_data)} provider-months")
 
+                        # **FIX: Properly format the month column**
+                        historical_data['month'] = pd.to_datetime(historical_data['month'])
+                        historical_data['month_str'] = historical_data['month'].dt.strftime('%B %Y')
+
                         # Display data table
                         st.subheader("📋 Monthly Averages by Provider")
 
-                        # Format the month column
-                        historical_data['month'] = pd.to_datetime(historical_data['month']).dt.strftime('%Y-%m')
+                        # Create display dataframe with formatted month
+                        display_data = historical_data.copy()
+                        display_data['month'] = display_data['month_str']
 
                         # Display table
                         st.dataframe(
-                            historical_data.sort_values(['month', 'provider_name'], ascending=[False, True]),
+                            display_data[
+                                ['month', 'provider_name', 'avg_mean_time', 'avg_median_time', 'total_sessions',
+                                 'avg_std_dev']].sort_values(['month', 'provider_name'], ascending=[False, True]),
                             use_container_width=True,
                             hide_index=True
                         )
@@ -656,18 +663,27 @@ def main():
                         # Line chart showing trends
                         st.subheader("📈 Mean Time to Note Trends")
 
+                        # Sort by month for proper line chart order
+                        chart_data = historical_data.sort_values('month')
+
                         fig = px.line(
-                            historical_data,
-                            x='month',
+                            chart_data,
+                            x='month_str',
                             y='avg_mean_time',
                             color='provider_name',
                             title='Provider Performance Over Time',
                             labels={
-                                'month': 'Month',
+                                'month_str': 'Month',
                                 'avg_mean_time': 'Average Mean Time to Note (days)',
                                 'provider_name': 'Provider'
-                            }
+                            },
+                            markers=True,
+                            category_orders={'month_str': sorted(chart_data['month_str'].unique())}
                         )
+
+                        # Clean up the chart
+                        fig.update_xaxes(tickangle=45)
+                        fig.update_layout(xaxis_type='category')
 
                         st.plotly_chart(fig, use_container_width=True)
 
@@ -675,33 +691,31 @@ def main():
                         st.subheader("📊 Latest Month Comparison")
                         latest_month = historical_data['month'].max()
                         latest_data = historical_data[historical_data['month'] == latest_month]
+                        latest_month_str = latest_data['month_str'].iloc[0]
 
                         fig2 = px.bar(
                             latest_data.sort_values('avg_mean_time'),
                             x='provider_name',
                             y='avg_mean_time',
-                            title=f'Provider Performance - {latest_month}',
+                            title=f'Provider Performance - {latest_month_str}',
                             labels={
                                 'provider_name': 'Provider',
                                 'avg_mean_time': 'Mean Time to Note (days)'
                             }
                         )
 
+                        fig2.update_xaxes(tickangle=45)
+
                         st.plotly_chart(fig2, use_container_width=True)
 
                         # Download historical data
                         st.subheader("💾 Download Historical Data")
-                        csv_historical = historical_data.to_csv(index=False)
+                        csv_historical = display_data.to_csv(index=False)
                         st.download_button(
                             label="📥 Download Historical Report (CSV)",
                             data=csv_historical,
                             file_name=f"historical_report_{start_date}_{end_date}.csv",
                             mime="text/csv"
                         )
-
-                    else:
-                        st.info("📭 No historical data found for the selected date range.")
-
-
 if __name__ == "__main__":
     main()
