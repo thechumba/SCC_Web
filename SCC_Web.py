@@ -211,7 +211,6 @@ def save_to_database(df, summary_df, conn_string, batch_id):
         st.error(traceback.format_exc())
         return False
 
-
 def get_historical_data(conn_string, start_date=None, end_date=None):
     """Retrieve historical data from database."""
     try:
@@ -232,11 +231,11 @@ def get_historical_data(conn_string, start_date=None, end_date=None):
         params = {}
 
         if start_date:
-            conditions.append("processing_date >= :start_date")
+            conditions.append("DATE(processing_date) >= :start_date")
             params['start_date'] = start_date
 
         if end_date:
-            conditions.append("processing_date <= :end_date")
+            conditions.append("DATE(processing_date) <= :end_date")
             params['end_date'] = end_date
 
         if conditions:
@@ -253,6 +252,7 @@ def get_historical_data(conn_string, start_date=None, end_date=None):
         return df
     except Exception as e:
         st.error(f"Error retrieving historical data: {str(e)}")
+        st.error(traceback.format_exc())
         return None
 
 
