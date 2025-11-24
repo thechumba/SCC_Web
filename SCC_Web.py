@@ -160,7 +160,7 @@ def process_provider_data(uploaded_file, holidays_list=None):
         provider_first_col = 'Provider First Name'
         provider_last_col = 'Provider Last Name'
 
-        # Create concatenated name columns
+        # Create concatenated name columns (needed for processing)
         df['Patient Name'] = df[patient_last_col] + ', ' + df[patient_first_col]
         df['Provider Name'] = df[provider_last_col] + ', ' + df[provider_first_col]
 
@@ -224,6 +224,17 @@ def process_provider_data(uploaded_file, holidays_list=None):
 
         summary_df = summary_df.sort_values('Provider Name')
 
+        # *** REMOVE PATIENT IDENTIFYING COLUMNS ***
+        log_status("🔒 Removing patient identifying information from output...")
+        columns_to_remove = ['Patient Last Name', 'Patient First Name', 'Patient Name']
+
+        # Keep track of which columns exist before removing
+        existing_columns_to_remove = [col for col in columns_to_remove if col in df.columns]
+
+        if existing_columns_to_remove:
+            df = df.drop(columns=existing_columns_to_remove)
+            log_status(f"✓ Removed columns: {', '.join(existing_columns_to_remove)}")
+
         log_status("✅ Processing complete!")
 
         return df, summary_df, status_messages
@@ -247,6 +258,8 @@ def main():
     st.markdown("""
     Process Excel files containing provider data to calculate **time-to-note metrics**.
 
+    **Note:** Patient identifying information (names) will be removed from all outputs for privacy compliance.
+
     Business days calculation excludes weekends and US Federal holidays.
     """)
 
@@ -263,6 +276,9 @@ def main():
         **Excluded:**
         - Weekends (Sat/Sun)
         - US Federal Holidays
+
+        **Privacy:**
+        - Patient names removed from output
         """)
 
         with st.expander("📋 Required Excel Format"):
