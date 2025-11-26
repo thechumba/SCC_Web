@@ -257,6 +257,7 @@ def get_historical_data(conn_string, start_date=None, end_date=None):
         st.error(traceback.format_exc())
         return None
 
+
 def process_provider_data(uploaded_file, holidays_list=None):
     """
     Process provider data to calculate time to note metrics.
@@ -266,7 +267,7 @@ def process_provider_data(uploaded_file, holidays_list=None):
         holidays_list: Optional list of holidays as strings in format 'YYYY-MM-DD'
 
     Returns:
-        tuple: (processed_df, summary_df, status_messages)
+        tuple: (processed_df, summary_df, provider_summary, df_display, status_messages)
     """
     status_messages = []
 
@@ -391,14 +392,32 @@ def process_provider_data(uploaded_file, holidays_list=None):
 
         summary_df = summary_df.sort_values('Provider Name')
 
+        # Create simplified provider summary report
+        log_status("📋 Creating Provider Summary Report...")
+
+        provider_summary = df.groupby('Provider Name').agg({
+            'Time to Note': 'mean'
+        }).reset_index()
+
+        provider_summary.columns = ['Provider', 'Average Days to Submit Note']
+        provider_summary['Average Days to Submit Note'] = provider_summary['Average Days to Submit Note'].round(2)
+        provider_summary = provider_summary.sort_values('Provider')
+
+        log_status(f"✓ Provider Summary created for {len(provider_summary)} providers")
+
+        # Create display version (without patient info)
+        log_status("🔒 Creating display version without patient identifying information...")
+        df_display = df.drop(columns=['Patient Last Name', 'Patient First Name', 'Patient Name'], errors='ignore')
+        log_status(f"✓ Display version created")
+
         log_status("✅ Processing complete!")
 
-        return df, summary_df, status_messages
+        return df, summary_df, provider_summary, df_display, status_messages
 
     except Exception as e:
         error_msg = f"❌ Error: {str(e)}\n{traceback.format_exc()}"
         log_status(error_msg)
-        return None, None, status_messages
+        return None, None, None, None, status_messages
 
 
 def main():
@@ -503,7 +522,7 @@ def main():
                     batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
 
                     # Process the data
-                    df, summary_df, status_messages = process_provider_data(
+                    df, summary_df, provider_summary, df_display, status_messages = process_provider_data(
                         uploaded_file,
                         st.session_state.holidays
                     )
@@ -513,7 +532,7 @@ def main():
                         for msg in status_messages:
                             st.text(msg)
 
-                    if df is not None and summary_df is not None:
+                    if df is not None and summary_df is not None and provider_summary is not None and df_display is not None:
                         # Save to database if connected
                         if conn_string:
                             with st.spinner("Saving to database..."):
@@ -522,14 +541,19 @@ def main():
                                 else:
                                     st.warning("⚠️ Processing successful, but failed to save to database")
 
-                        # Remove patient identifying info for display
-                        df_display = df.drop(columns=['Patient Last Name', 'Patient First Name', 'Patient Name'],
-                                             errors='ignore')
-
                         st.success("✅ Processing completed successfully!")
 
-                        # Display summary
-                        st.header("📊 Summary Statistics by Provider")
+                        # Display Provider Summary Report
+                        st.header("📋 Provider Summary Report")
+                        st.markdown("*Average days to submit notes after session*")
+                        st.dataframe(
+                            provider_summary,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        # Display detailed summary
+                        st.header("📊 Detailed Summary Statistics by Provider")
                         st.dataframe(
                             summary_df,
                             use_container_width=True,
@@ -552,14 +576,15 @@ def main():
                         # Download section
                         st.header("💾 Download Results")
 
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3, col4, col5 = st.columns(5)
 
                         with col1:
                             # Excel download
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                                 df_display.to_excel(writer, sheet_name='Processed Data', index=False)
-                                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                                provider_summary.to_excel(writer, sheet_name='Provider Summary', index=False)
+                                summary_df.to_excel(writer, sheet_name='Detailed Summary', index=False)
 
                             st.download_button(
                                 label="📥 Download Excel",
@@ -613,6 +638,16 @@ def main():
                                 mime="application/x-sqlite3"
                             )
 
+                        with col5:
+                            # Provider Summary CSV download
+                            csv_provider_summary = provider_summary.to_csv(index=False)
+                            st.download_button(
+                                label="📥 Provider Summary",
+                                data=csv_provider_summary,
+                                file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_provider_summary.csv",
+                                mime="text/csv"
+                            )
+
                         # Show detailed data
                         with st.expander("🔍 View Processed Data"):
                             st.dataframe(df_display, use_container_width=True)
@@ -641,7 +676,7 @@ def main():
                     if historical_data is not None and not historical_data.empty:
                         st.success(f"✅ Loaded data for {len(historical_data)} provider-months")
 
-                        # **FIX: Properly format the month column**
+                        # Format the month column
                         historical_data['month'] = pd.to_datetime(historical_data['month'])
                         historical_data['month_str'] = historical_data['month'].dt.strftime('%B %Y')
 
@@ -718,5 +753,10 @@ def main():
                             file_name=f"historical_report_{start_date}_{end_date}.csv",
                             mime="text/csv"
                         )
+
+                    else:
+                        st.info("📭 No historical data found for the selected date range.")
+
+
 if __name__ == "__main__":
     main()
