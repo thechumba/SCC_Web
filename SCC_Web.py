@@ -405,10 +405,9 @@ def process_provider_data(uploaded_file, holidays_list=None):
 
         log_status(f"✓ Provider Summary created for {len(provider_summary)} providers")
 
-        # Create display version (without patient info)
-        log_status("🔒 Creating display version without patient identifying information...")
-        df_display = df.drop(columns=['Patient Last Name', 'Patient First Name', 'Patient Name'], errors='ignore')
-        log_status(f"✓ Display version created")
+        # Keep all columns including patient information
+        log_status("✓ Keeping all columns including patient information")
+        df_display = df.copy()
 
         log_status("✅ Processing complete!")
 
