@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 import streamlit as st
 import traceback
 import io
-from sqlalchemy import create_engine, text
-import plotly.express as px
-import plotly.graph_objects as go
+# from sqlalchemy import create_engine, text
+# import plotly.express as px
+# import plotly.graph_objects as go
 
 
 def is_weekend(date):
@@ -91,171 +91,176 @@ def setup_holidays():
     ]
 
 
-def get_database_connection():
-    """Get database connection string from Streamlit secrets."""
-    try:
-        return st.secrets["database"]["connection_string"]
-    except:
-        return None
+# ===== DATABASE FUNCTIONALITY COMMENTED OUT =====
+# Uncomment these functions if you want to restore database functionality
+
+# def get_database_connection():
+#     """Get database connection string from Streamlit secrets."""
+#     try:
+#         return st.secrets["database"]["connection_string"]
+#     except:
+#         return None
 
 
-def initialize_database(conn_string):
-    """Create necessary tables if they don't exist."""
-    try:
-        engine = create_engine(conn_string)
-
-        # Create processed_data table
-        with engine.connect() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS processed_data (
-                    id SERIAL PRIMARY KEY,
-                    processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    service_date DATE,
-                    entry_date DATE,
-                    provider_first_name TEXT,
-                    provider_last_name TEXT,
-                    provider_name TEXT,
-                    charge_code TEXT,
-                    time_to_note NUMERIC,
-                    date_calculation_issue BOOLEAN,
-                    upload_batch_id TEXT
-                )
-            """))
-
-            # Create summary table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS provider_summary (
-                    id SERIAL PRIMARY KEY,
-                    processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    provider_name TEXT,
-                    count INTEGER,
-                    mean NUMERIC,
-                    median NUMERIC,
-                    min NUMERIC,
-                    max NUMERIC,
-                    std_dev NUMERIC,
-                    upload_batch_id TEXT
-                )
-            """))
-
-            conn.commit()
-
-        return True
-    except Exception as e:
-        st.error(f"Database initialization error: {str(e)}")
-        return False
-
-
-def save_to_database(df, summary_df, conn_string, batch_id):
-    """Save processed data and summary to PostgreSQL database."""
-    try:
-        engine = create_engine(conn_string)
-
-        # Prepare data for database
-        df_to_save = df.copy()
-
-        # Add batch ID and processing date
-        df_to_save['upload_batch_id'] = batch_id
-        df_to_save['processing_date'] = datetime.now()
-
-        # Convert date columns to proper format
-        for col in ['service_date', 'entry_date']:
-            if col.title().replace('_', ' ') in df_to_save.columns:
-                orig_col = col.title().replace('_', ' ')
-                df_to_save[col] = pd.to_datetime(df_to_save[orig_col]).dt.date
-                df_to_save = df_to_save.drop(columns=[orig_col])
-
-        # Rename columns to match database schema (lowercase with underscores)
-        column_mapping = {
-            'Provider First Name': 'provider_first_name',
-            'Provider Last Name': 'provider_last_name',
-            'Provider Name': 'provider_name',
-            'Charge code': 'charge_code',
-            'Time to Note': 'time_to_note',
-            'Date_Calculation_Issue': 'date_calculation_issue'
-        }
-
-        df_to_save = df_to_save.rename(columns=column_mapping)
-
-        # Select only columns that exist in the database
-        db_columns = ['processing_date', 'service_date', 'entry_date',
-                      'provider_first_name', 'provider_last_name', 'provider_name',
-                      'charge_code', 'time_to_note', 'date_calculation_issue', 'upload_batch_id']
-
-        df_to_save = df_to_save[[col for col in db_columns if col in df_to_save.columns]]
-
-        # Save to database
-        df_to_save.to_sql('processed_data', engine, if_exists='append', index=False)
-
-        # Save summary
-        summary_to_save = summary_df.copy()
-        summary_to_save['upload_batch_id'] = batch_id
-        summary_to_save['processing_date'] = datetime.now()
-
-        summary_column_mapping = {
-            'Provider Name': 'provider_name',
-            'Count': 'count',
-            'Mean': 'mean',
-            'Median': 'median',
-            'Min': 'min',
-            'Max': 'max',
-            'Std Dev': 'std_dev'
-        }
-
-        summary_to_save = summary_to_save.rename(columns=summary_column_mapping)
-        summary_to_save.to_sql('provider_summary', engine, if_exists='append', index=False)
-
-        return True
-    except Exception as e:
-        st.error(f"Database save error: {str(e)}")
-        st.error(traceback.format_exc())
-        return False
+# def initialize_database(conn_string):
+#     """Create necessary tables if they don't exist."""
+#     try:
+#         engine = create_engine(conn_string)
+#
+#         # Create processed_data table
+#         with engine.connect() as conn:
+#             conn.execute(text("""
+#                 CREATE TABLE IF NOT EXISTS processed_data (
+#                     id SERIAL PRIMARY KEY,
+#                     processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+#                     service_date DATE,
+#                     entry_date DATE,
+#                     provider_first_name TEXT,
+#                     provider_last_name TEXT,
+#                     provider_name TEXT,
+#                     charge_code TEXT,
+#                     time_to_note NUMERIC,
+#                     date_calculation_issue BOOLEAN,
+#                     upload_batch_id TEXT
+#                 )
+#             """))
+#
+#             # Create summary table
+#             conn.execute(text("""
+#                 CREATE TABLE IF NOT EXISTS provider_summary (
+#                     id SERIAL PRIMARY KEY,
+#                     processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+#                     provider_name TEXT,
+#                     count INTEGER,
+#                     mean NUMERIC,
+#                     median NUMERIC,
+#                     min NUMERIC,
+#                     max NUMERIC,
+#                     std_dev NUMERIC,
+#                     upload_batch_id TEXT
+#                 )
+#             """))
+#
+#             conn.commit()
+#
+#         return True
+#     except Exception as e:
+#         st.error(f"Database initialization error: {str(e)}")
+#         return False
 
 
-def get_historical_data(conn_string, start_date=None, end_date=None):
-    """Retrieve historical data from database."""
-    try:
-        engine = create_engine(conn_string)
+# def save_to_database(df, summary_df, conn_string, batch_id):
+#     """Save processed data and summary to PostgreSQL database."""
+#     try:
+#         engine = create_engine(conn_string)
+#
+#         # Prepare data for database
+#         df_to_save = df.copy()
+#
+#         # Add batch ID and processing date
+#         df_to_save['upload_batch_id'] = batch_id
+#         df_to_save['processing_date'] = datetime.now()
+#
+#         # Convert date columns to proper format
+#         for col in ['service_date', 'entry_date']:
+#             if col.title().replace('_', ' ') in df_to_save.columns:
+#                 orig_col = col.title().replace('_', ' ')
+#                 df_to_save[col] = pd.to_datetime(df_to_save[orig_col]).dt.date
+#                 df_to_save = df_to_save.drop(columns=[orig_col])
+#
+#         # Rename columns to match database schema (lowercase with underscores)
+#         column_mapping = {
+#             'Provider First Name': 'provider_first_name',
+#             'Provider Last Name': 'provider_last_name',
+#             'Provider Name': 'provider_name',
+#             'Charge code': 'charge_code',
+#             'Time to Note': 'time_to_note',
+#             'Date_Calculation_Issue': 'date_calculation_issue'
+#         }
+#
+#         df_to_save = df_to_save.rename(columns=column_mapping)
+#
+#         # Select only columns that exist in the database
+#         db_columns = ['processing_date', 'service_date', 'entry_date',
+#                      'provider_first_name', 'provider_last_name', 'provider_name',
+#                      'charge_code', 'time_to_note', 'date_calculation_issue', 'upload_batch_id']
+#
+#         df_to_save = df_to_save[[col for col in db_columns if col in df_to_save.columns]]
+#
+#         # Save to database
+#         df_to_save.to_sql('processed_data', engine, if_exists='append', index=False)
+#
+#         # Save summary
+#         summary_to_save = summary_df.copy()
+#         summary_to_save['upload_batch_id'] = batch_id
+#         summary_to_save['processing_date'] = datetime.now()
+#
+#         summary_column_mapping = {
+#             'Provider Name': 'provider_name',
+#             'Count': 'count',
+#             'Mean': 'mean',
+#             'Median': 'median',
+#             'Min': 'min',
+#             'Max': 'max',
+#             'Std Dev': 'std_dev'
+#         }
+#
+#         summary_to_save = summary_to_save.rename(columns=summary_column_mapping)
+#         summary_to_save.to_sql('provider_summary', engine, if_exists='append', index=False)
+#
+#         return True
+#     except Exception as e:
+#         st.error(f"Database save error: {str(e)}")
+#         st.error(traceback.format_exc())
+#         return False
 
-        query = """
-            SELECT 
-                DATE_TRUNC('month', service_date) as month,
-                provider_name,
-                AVG(time_to_note) as avg_mean_time,
-                COUNT(*) as total_sessions,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY time_to_note) as avg_median_time,
-                STDDEV(time_to_note) as avg_std_dev
-            FROM processed_data
-            WHERE time_to_note IS NOT NULL
-        """
 
-        conditions = []
-        params = {}
+# def get_historical_data(conn_string, start_date=None, end_date=None):
+#     """Retrieve historical data from database."""
+#     try:
+#         engine = create_engine(conn_string)
+#
+#         query = """
+#             SELECT
+#                 DATE_TRUNC('month', service_date) as month,
+#                 provider_name,
+#                 AVG(time_to_note) as avg_mean_time,
+#                 COUNT(*) as total_sessions,
+#                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY time_to_note) as avg_median_time,
+#                 STDDEV(time_to_note) as avg_std_dev
+#             FROM processed_data
+#             WHERE time_to_note IS NOT NULL
+#         """
+#
+#         conditions = []
+#         params = {}
+#
+#         if start_date:
+#             conditions.append("DATE(service_date) >= :start_date")
+#             params['start_date'] = start_date
+#
+#         if end_date:
+#             conditions.append("DATE(service_date) <= :end_date")
+#             params['end_date'] = end_date
+#
+#         if conditions:
+#             query += " AND " + " AND ".join(conditions)
+#
+#         query += """
+#             GROUP BY DATE_TRUNC('month', service_date), provider_name
+#             ORDER BY month DESC, provider_name
+#         """
+#
+#         with engine.connect() as conn:
+#             df = pd.read_sql(text(query), conn, params=params)
+#
+#         return df
+#     except Exception as e:
+#         st.error(f"Error retrieving historical data: {str(e)}")
+#         st.error(traceback.format_exc())
+#         return None
 
-        if start_date:
-            conditions.append("DATE(service_date) >= :start_date")
-            params['start_date'] = start_date
-
-        if end_date:
-            conditions.append("DATE(service_date) <= :end_date")
-            params['end_date'] = end_date
-
-        if conditions:
-            query += " AND " + " AND ".join(conditions)
-
-        query += """
-            GROUP BY DATE_TRUNC('month', service_date), provider_name
-            ORDER BY month DESC, provider_name
-        """
-
-        with engine.connect() as conn:
-            df = pd.read_sql(text(query), conn, params=params)
-
-        return df
-    except Exception as e:
-        st.error(f"Error retrieving historical data: {str(e)}")
-        st.error(traceback.format_exc())
-        return None
+# ===== END DATABASE FUNCTIONALITY =====
 
 
 def process_provider_data(uploaded_file, holidays_list=None):
@@ -430,331 +435,207 @@ def main():
     # Title and description
     st.title("📊 Provider Data Processor")
 
-    # Check for database connection
-    conn_string = get_database_connection()
+    # Database functionality commented out
+    # conn_string = get_database_connection()
+    #
+    # if conn_string:
+    #     st.success("✅ Database connected")
+    #     initialize_database(conn_string)
+    # else:
+    #     st.warning("⚠️ No database configured - data will not be saved permanently")
 
-    if conn_string:
-        st.success("✅ Database connected")
-        initialize_database(conn_string)
-    else:
-        st.warning("⚠️ No database configured - data will not be saved permanently")
-        with st.expander("🔧 How to set up database"):
-            st.markdown("""
-            1. Create a free Supabase account at https://supabase.com
-            2. Create a new project
-            3. Get your connection string from Settings → Database
-            4. Add it to Streamlit secrets (Settings → Secrets in Streamlit Cloud)
-
-            Format:
-```toml
-            [database]
-            connection_string = "postgresql://postgres:password@host:port/database"
-```
-            """)
+    st.markdown("""
+    Process Excel files containing provider data to calculate **time-to-note metrics**.
+    
+    Business days calculation excludes weekends and US Federal holidays.
+    """)
 
     # Initialize holidays in session state
     if 'holidays' not in st.session_state:
         st.session_state.holidays = setup_holidays()
 
-    # Create tabs
-    tab1, tab2 = st.tabs(["📤 Process New Data", "📈 Historical Reports"])
-
-    with tab1:
-        st.markdown("""
-        Process Excel files containing provider data to calculate **time-to-note metrics**.
-
-        **Note:** Patient identifying information (names) will be removed from displayed outputs for privacy compliance.
-
-        Business days calculation excludes weekends and US Federal holidays.
+    # Sidebar for information
+    with st.sidebar:
+        st.header("ℹ️ Information")
+        st.info(f"""
+        **Holidays Configured:** {len(st.session_state.holidays)}
+        
+        **Excluded:**
+        - Weekends (Sat/Sun)
+        - US Federal Holidays
         """)
 
-        # Sidebar for information
-        with st.sidebar:
-            st.header("ℹ️ Information")
-            st.info(f"""
-            **Holidays Configured:** {len(st.session_state.holidays)}
-
-            **Excluded:**
-            - Weekends (Sat/Sun)
-            - US Federal Holidays
-
-            **Privacy:**
-            - Patient names removed from display
+        with st.expander("📋 Required Excel Format"):
+            st.markdown("""
+            Your Excel file must contain:
+            - Service Date
+            - Entry Date
+            - Provider First/Last Name
+            - Patient First/Last Name
+            - Charge code
             """)
 
-            with st.expander("📋 Required Excel Format"):
-                st.markdown("""
-                Your Excel file must contain:
-                - Service Date
-                - Entry Date
-                - Provider First/Last Name
-                - Patient First/Last Name
-                - Charge code
-                """)
+    # Main content area
+    col1, col2 = st.columns([2, 1])
 
-        # Main content area
-        col1, col2 = st.columns([2, 1])
+    with col1:
+        st.header("📁 Upload Excel File")
+        uploaded_file = st.file_uploader(
+            "Choose an Excel file",
+            type=['xlsx', 'xls'],
+            help="Upload your provider data Excel file"
+        )
 
-        with col1:
-            st.header("📁 Upload Excel File")
-            uploaded_file = st.file_uploader(
-                "Choose an Excel file",
-                type=['xlsx', 'xls'],
-                help="Upload your provider data Excel file"
-            )
+    with col2:
+        st.header("⚙️ Settings")
+        db_name = st.text_input(
+            "Database name (for download)",
+            value="provider_data.db",
+            help="SQLite database filename for download"
+        )
 
-        with col2:
-            st.header("⚙️ Settings")
-            db_name = st.text_input(
-                "Database name (for download)",
-                value="provider_data.db",
-                help="SQLite database filename for download"
-            )
+    # Process button
+    if uploaded_file is not None:
+        st.success(f"✓ File loaded: {uploaded_file.name}")
 
-        # Process button
-        if uploaded_file is not None:
-            st.success(f"✓ File loaded: {uploaded_file.name}")
+        if st.button("🚀 Process Data", type="primary", use_container_width=True):
+            with st.spinner("Processing data..."):
+                # Generate batch ID (not used but kept for future)
+                batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
 
-            if st.button("🚀 Process Data", type="primary", use_container_width=True):
-                with st.spinner("Processing data..."):
-                    # Generate batch ID
-                    batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
+                # Process the data
+                df, summary_df, provider_summary, df_display, status_messages = process_provider_data(
+                    uploaded_file,
+                    st.session_state.holidays
+                )
 
-                    # Process the data
-                    df, summary_df, provider_summary, df_display, status_messages = process_provider_data(
-                        uploaded_file,
-                        st.session_state.holidays
+                # Display status messages
+                with st.expander("📋 Processing Log", expanded=True):
+                    for msg in status_messages:
+                        st.text(msg)
+
+                if df is not None and summary_df is not None and provider_summary is not None and df_display is not None:
+                    # Database save commented out
+                    # if conn_string:
+                    #     with st.spinner("Saving to database..."):
+                    #         if save_to_database(df, summary_df, conn_string, batch_id):
+                    #             st.success("✅ Data saved to database!")
+                    #         else:
+                    #             st.warning("⚠️ Processing successful, but failed to save to database")
+
+                    st.success("✅ Processing completed successfully!")
+
+                    # Display Provider Summary Report
+                    st.header("📋 Provider Summary Report")
+                    st.markdown("*Average days to submit notes after session*")
+                    st.dataframe(
+                        provider_summary,
+                        use_container_width=True,
+                        hide_index=True
                     )
 
-                    # Display status messages
-                    with st.expander("📋 Processing Log", expanded=True):
-                        for msg in status_messages:
-                            st.text(msg)
+                    # Display detailed summary
+                    st.header("📊 Detailed Summary Statistics by Provider")
+                    st.dataframe(
+                        summary_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-                    if df is not None and summary_df is not None and provider_summary is not None and df_display is not None:
-                        # Save to database if connected
-                        if conn_string:
-                            with st.spinner("Saving to database..."):
-                                if save_to_database(df, summary_df, conn_string, batch_id):
-                                    st.success("✅ Data saved to database!")
-                                else:
-                                    st.warning("⚠️ Processing successful, but failed to save to database")
+                    # Visualizations
+                    st.header("📈 Visualizations")
+                    col1, col2 = st.columns(2)
 
-                        st.success("✅ Processing completed successfully!")
+                    with col1:
+                        st.subheader("Mean Time to Note by Provider")
+                        chart_data = summary_df.set_index('Provider Name')['Mean']
+                        st.bar_chart(chart_data)
 
-                        # Display Provider Summary Report
-                        st.header("📋 Provider Summary Report")
-                        st.markdown("*Average days to submit notes after session*")
-                        st.dataframe(
-                            provider_summary,
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                    with col2:
+                        st.subheader("Distribution of Time to Note")
+                        st.line_chart(df['Time to Note'].value_counts().sort_index())
 
-                        # Display detailed summary
-                        st.header("📊 Detailed Summary Statistics by Provider")
-                        st.dataframe(
-                            summary_df,
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                    # Download section
+                    st.header("💾 Download Results")
 
-                        # Visualizations
-                        st.header("📈 Visualizations")
-                        col1, col2 = st.columns(2)
+                    col1, col2, col3, col4, col5 = st.columns(5)
 
-                        with col1:
-                            st.subheader("Mean Time to Note by Provider")
-                            chart_data = summary_df.set_index('Provider Name')['Mean']
-                            st.bar_chart(chart_data)
+                    with col1:
+                        # Excel download
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            df_display.to_excel(writer, sheet_name='Processed Data', index=False)
+                            provider_summary.to_excel(writer, sheet_name='Provider Summary', index=False)
+                            summary_df.to_excel(writer, sheet_name='Detailed Summary', index=False)
 
-                        with col2:
-                            st.subheader("Distribution of Time to Note")
-                            st.line_chart(df['Time to Note'].value_counts().sort_index())
-
-                        # Download section
-                        st.header("💾 Download Results")
-
-                        col1, col2, col3, col4, col5 = st.columns(5)
-
-                        with col1:
-                            # Excel download
-                            output = io.BytesIO()
-                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                df_display.to_excel(writer, sheet_name='Processed Data', index=False)
-                                provider_summary.to_excel(writer, sheet_name='Provider Summary', index=False)
-                                summary_df.to_excel(writer, sheet_name='Detailed Summary', index=False)
-
-                            st.download_button(
-                                label="📥 Download Excel",
-                                data=output.getvalue(),
-                                file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_processed.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-
-                        with col2:
-                            # CSV download (processed data)
-                            csv_data = df_display.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download CSV (Data)",
-                                data=csv_data,
-                                file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_processed.csv",
-                                mime="text/csv"
-                            )
-
-                        with col3:
-                            # CSV download (summary)
-                            csv_summary = summary_df.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download CSV (Summary)",
-                                data=csv_summary,
-                                file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_summary.csv",
-                                mime="text/csv"
-                            )
-
-                        with col4:
-                            # SQLite database
-                            db_output = io.BytesIO()
-                            conn = sqlite3.connect(':memory:')
-
-                            df_to_save = df.copy()
-                            for col in ['Service Date', 'Entry Date']:
-                                if col in df_to_save.columns:
-                                    df_to_save[col] = df_to_save[col].astype(str)
-
-                            df_to_save.to_sql('processed_data', conn, if_exists='replace', index=False)
-                            summary_df.to_sql('summary_by_provider', conn, if_exists='replace', index=False)
-
-                            # Write database to bytes
-                            for line in conn.iterdump():
-                                db_output.write(f'{line}\n'.encode('utf-8'))
-                            conn.close()
-
-                            st.download_button(
-                                label="📥 Download Database",
-                                data=db_output.getvalue(),
-                                file_name=db_name,
-                                mime="application/x-sqlite3"
-                            )
-
-                        with col5:
-                            # Provider Summary CSV download
-                            csv_provider_summary = provider_summary.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Provider Summary",
-                                data=csv_provider_summary,
-                                file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_provider_summary.csv",
-                                mime="text/csv"
-                            )
-
-                        # Show detailed data
-                        with st.expander("🔍 View Processed Data"):
-                            st.dataframe(df_display, use_container_width=True)
-
-                    else:
-                        st.error("❌ Processing failed. Check the log for details.")
-
-    with tab2:
-        st.header("📈 Historical Trend Analysis")
-
-        if not conn_string:
-            st.warning("⚠️ Database not configured. Historical reports require database connection.")
-            st.info("Set up a database to track provider performance over time.")
-        else:
-            # Date range selector
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Start Date", value=datetime.now() - timedelta(days=180))
-            with col2:
-                end_date = st.date_input("End Date", value=datetime.now())
-
-            if st.button("📊 Generate Report", type="primary"):
-                with st.spinner("Loading historical data..."):
-                    historical_data = get_historical_data(conn_string, start_date, end_date)
-
-                    if historical_data is not None and not historical_data.empty:
-                        st.success(f"✅ Loaded data for {len(historical_data)} provider-months")
-
-                        # Format the month column
-                        historical_data['month'] = pd.to_datetime(historical_data['month'])
-                        historical_data['month_str'] = historical_data['month'].dt.strftime('%B %Y')
-
-                        # Display data table
-                        st.subheader("📋 Monthly Averages by Provider")
-
-                        # Create display dataframe with formatted month
-                        display_data = historical_data.copy()
-                        display_data['month'] = display_data['month_str']
-
-                        # Display table
-                        st.dataframe(
-                            display_data[
-                                ['month', 'provider_name', 'avg_mean_time', 'avg_median_time', 'total_sessions',
-                                 'avg_std_dev']].sort_values(['month', 'provider_name'], ascending=[False, True]),
-                            use_container_width=True,
-                            hide_index=True
-                        )
-
-                        # Line chart showing trends
-                        st.subheader("📈 Mean Time to Note Trends")
-
-                        # Sort by month for proper line chart order
-                        chart_data = historical_data.sort_values('month')
-
-                        fig = px.line(
-                            chart_data,
-                            x='month_str',
-                            y='avg_mean_time',
-                            color='provider_name',
-                            title='Provider Performance Over Time',
-                            labels={
-                                'month_str': 'Month',
-                                'avg_mean_time': 'Average Mean Time to Note (days)',
-                                'provider_name': 'Provider'
-                            },
-                            markers=True,
-                            category_orders={'month_str': sorted(chart_data['month_str'].unique())}
-                        )
-
-                        # Clean up the chart
-                        fig.update_xaxes(tickangle=45)
-                        fig.update_layout(xaxis_type='category')
-
-                        st.plotly_chart(fig, use_container_width=True)
-
-                        # Bar chart for latest month
-                        st.subheader("📊 Latest Month Comparison")
-                        latest_month = historical_data['month'].max()
-                        latest_data = historical_data[historical_data['month'] == latest_month]
-                        latest_month_str = latest_data['month_str'].iloc[0]
-
-                        fig2 = px.bar(
-                            latest_data.sort_values('avg_mean_time'),
-                            x='provider_name',
-                            y='avg_mean_time',
-                            title=f'Provider Performance - {latest_month_str}',
-                            labels={
-                                'provider_name': 'Provider',
-                                'avg_mean_time': 'Mean Time to Note (days)'
-                            }
-                        )
-
-                        fig2.update_xaxes(tickangle=45)
-
-                        st.plotly_chart(fig2, use_container_width=True)
-
-                        # Download historical data
-                        st.subheader("💾 Download Historical Data")
-                        csv_historical = display_data.to_csv(index=False)
                         st.download_button(
-                            label="📥 Download Historical Report (CSV)",
-                            data=csv_historical,
-                            file_name=f"historical_report_{start_date}_{end_date}.csv",
+                            label="📥 Download Excel",
+                            data=output.getvalue(),
+                            file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_processed.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+
+                    with col2:
+                        # CSV download (processed data)
+                        csv_data = df_display.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download CSV (Data)",
+                            data=csv_data,
+                            file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_processed.csv",
                             mime="text/csv"
                         )
 
-                    else:
-                        st.info("📭 No historical data found for the selected date range.")
+                    with col3:
+                        # CSV download (summary)
+                        csv_summary = summary_df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download CSV (Summary)",
+                            data=csv_summary,
+                            file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_summary.csv",
+                            mime="text/csv"
+                        )
+
+                    with col4:
+                        # SQLite database
+                        db_output = io.BytesIO()
+                        conn = sqlite3.connect(':memory:')
+
+                        df_to_save = df.copy()
+                        for col in ['Service Date', 'Entry Date']:
+                            if col in df_to_save.columns:
+                                df_to_save[col] = df_to_save[col].astype(str)
+
+                        df_to_save.to_sql('processed_data', conn, if_exists='replace', index=False)
+                        summary_df.to_sql('summary_by_provider', conn, if_exists='replace', index=False)
+
+                        # Write database to bytes
+                        for line in conn.iterdump():
+                            db_output.write(f'{line}\n'.encode('utf-8'))
+                        conn.close()
+
+                        st.download_button(
+                            label="📥 Download Database",
+                            data=db_output.getvalue(),
+                            file_name=db_name,
+                            mime="application/x-sqlite3"
+                        )
+
+                    with col5:
+                        # Provider Summary CSV download
+                        csv_provider_summary = provider_summary.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Provider Summary",
+                            data=csv_provider_summary,
+                            file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}_provider_summary.csv",
+                            mime="text/csv"
+                        )
+
+                    # Show detailed data
+                    with st.expander("🔍 View Processed Data"):
+                        st.dataframe(df_display, use_container_width=True)
+
+                else:
+                    st.error("❌ Processing failed. Check the log for details.")
 
 
 if __name__ == "__main__":
